@@ -8,7 +8,7 @@ async function main() {
     const name = 'Test Token';
     const symbol = 'TT';
     const admin = '0x131D1697d2cFB060493C14A4e6Fa72892770588E';
-    const router = '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D'; // BSC Pancake Testnet Router
+    const router = '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D';
     const marketingWallet = '0x131D1697d2cFB060493C14A4e6Fa72892770588E';
 
     const MemeCoin = await ethers.getContractFactory('MemeCoin');
