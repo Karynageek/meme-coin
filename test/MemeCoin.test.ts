@@ -127,7 +127,7 @@ describe('MemeCoin contract', () => {
       /* ASSERT */
       await expect(
         token.connect(addr1).transfer(recipient, amount)
-      ).to.be.revertedWith("ERC20: transfer to the zero address");
+      ).to.be.revertedWith("ZeroAddress()");
     });
 
     it("should revert if transfer amount is zero", async () => {
@@ -137,7 +137,7 @@ describe('MemeCoin contract', () => {
       /* ASSERT */
       await expect(
         token.connect(addr1).transfer(recipient, 0)
-      ).to.be.revertedWith("Transfer amount must be greater than zero");
+      ).to.be.revertedWith("InvalidValue()");
     });
 
     it("should revert if trading is not yet enabled", async () => {
@@ -150,7 +150,7 @@ describe('MemeCoin contract', () => {
       /* ASSERT */
       await expect(
         token.connect(addr1).transfer(recipient, amount)
-      ).to.be.revertedWith("Trading not yet enabled");
+      ).to.be.revertedWith("TradingNotEnabled()");
     });
 
     it("should revert if sender is an abuser", async () => {
@@ -163,7 +163,7 @@ describe('MemeCoin contract', () => {
       /* ASSERT */
       await expect(
         token.connect(addr1).transfer(recipient, amount)
-      ).to.be.revertedWith("Address is abuser");
+      ).to.be.revertedWith("UserIsAbuser()");
     });
 
     it("should revert if recipient is an abuser", async () => {
@@ -175,7 +175,7 @@ describe('MemeCoin contract', () => {
       /* ASSERT */
       await expect(
         token.connect(addr1).transfer(recipient, amount)
-      ).to.be.revertedWith("Address is abuser");
+      ).to.be.revertedWith("UserIsAbuser()");
     });
 
     it("should revert if sell transfer amount exceeds maxSellTransaction", async () => {
@@ -189,7 +189,7 @@ describe('MemeCoin contract', () => {
       /* ASSERT */
       await expect(
         token.connect(addr1).transfer(recipient, amount)
-      ).to.be.revertedWith("Sell transfer amount exceeds the maxTransactionAmount.");
+      ).to.be.revertedWith("MaxTransactionAmountExceeded()");
     });
 
     it("should revert if buy transfer amount exceeds maxBuyTransaction", async () => {
@@ -201,12 +201,13 @@ describe('MemeCoin contract', () => {
 
       await token.enableTrading(true);
       await token.excludeFromMaxTransaction(owner.address, false);
-      await token.updateMaxBuyTransaction(parseUnits("1", 18));
+      await token.updateMaxBuyTransaction(parseUnits("0.01", 18));
       await token.updateMaxSellTransaction(parseUnits("1000", 18));
       await token.updateMaxWalletAmount(ethers.utils.parseEther("100000"));
 
       /* ASSERT */
-      await expect(buyTokens(owner, 1)).to.be.reverted;
+      // Uniswap router swallows our revert message, so we can't check for it.
+      await expect(buyTokens(owner, 0.1)).to.be.revertedWith("UniswapV2: TRANSFER_FAILED");
     });
 
     it("should revert if sell transfer exceeds maxWalletAmount", async () => {
@@ -221,7 +222,7 @@ describe('MemeCoin contract', () => {
       /* ASSERT */
       await expect(
         token.connect(addr1).transfer(recipient, amount)
-      ).to.be.revertedWith("Max wallet exceeded");
+      ).to.be.revertedWith("MaxWalletExceeded()");
     });
 
     it("should revert if buy transfer amount exceeds maxWalletAmount", async () => {
@@ -235,10 +236,11 @@ describe('MemeCoin contract', () => {
       await token.excludeFromMaxTransaction(owner.address, false);
       await token.updateMaxBuyTransaction(parseUnits("1000", 18));
       await token.updateMaxSellTransaction(parseUnits("1000", 18));
-      await token.updateMaxWalletAmount(ethers.utils.parseEther("1"));
+      await token.updateMaxWalletAmount(ethers.utils.parseEther("0.01"));
 
       /* ASSERT */
-      await expect(buyTokens(owner, 1)).to.be.reverted;
+      // Uniswap router swallows our revert message, so we can't check for it.
+      await expect(buyTokens(owner, 0.1)).to.be.revertedWith("UniswapV2: TRANSFER_FAILED");
     });
 
     it("should transfer tokens without fees", async () => {
@@ -370,8 +372,8 @@ describe('MemeCoin contract', () => {
       await token.updateSellFees(newLiquidityFee, newMarketingFee);
       await token.updateWalletToWalletTransferFee(1);
 
-      const fee = newLiquidityFee + newMarketingFee;
-      const feeAmount = amount.mul(fee).div(100);
+      const totalFee = newLiquidityFee + newMarketingFee;
+      const feeAmount = amount.mul(totalFee).div(100);
 
       await token.connect(owner).transfer(addr1.address, amount.mul(2));
       await token.connect(addr1).transfer(addr2.address, amount);
@@ -384,8 +386,7 @@ describe('MemeCoin contract', () => {
       const pairBefore = await token.balanceOf(pairAddress);
 
       /* EXECUTE */
-      const tx = token.connect(addr1).transfer(pairAddress, amount);
-      await delay(100);
+      const tx = await token.connect(addr1).transfer(pairAddress, amount);
 
       /* ASSERT */
       const WETHBalanceAfter = await ethers.provider.getBalance(WETHAddress);
@@ -401,8 +402,10 @@ describe('MemeCoin contract', () => {
       expect(pairAfter).to.be.gt(pairBefore);
       expect(addr1BalanceAfter).to.equal(addr1BalanceBefore.sub(amount));
 
-      await expect(tx).to.emit(token, "Transfer");
+      await expect(tx).to.emit(token, "Transfer").withArgs(addr1.address, token.address, feeAmount);
+      await expect(tx).to.emit(token, "Transfer").withArgs(addr1.address, pairAddress, amount.sub(feeAmount));
       await expect(tx).to.emit(token, 'SwapAndLiquify');
+      await expect(tx).to.emit(token, 'SwapAndSendMarketing');
     });
   });
 
@@ -982,14 +985,14 @@ describe('MemeCoin contract', () => {
     it('should prevent zero address from withdrawing stuck tokens', async function () {
       /* ASSERT */
       await expect(token.connect(owner).withdrawStuckTokens(zeroAddress, addr2.address)).to.be.revertedWith(
-        `_token address cannot be 0`
+        `ZeroAddress()`
       );
     });
 
     it('should prevent own contract address from withdrawing stuck tokens', async function () {
       /* ASSERT */
       await expect(token.connect(owner).withdrawStuckTokens(token.address, addr2.address)).to.be.revertedWith(
-        `Owner cannot claim contract's balance of its own tokens`
+        `ForbiddenWithdrawalFromOwnContract()`
       );
     });
 

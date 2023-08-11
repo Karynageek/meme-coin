@@ -34,7 +34,7 @@ const config: HardhatUserConfig = {
     goerli: {
       url: process.env.GOERLI_TESTNET_RPC_URL || "",
       from: process.env.WALLET || "",
-      accounts: [ process.env.PRIVATE_KEY || "" ],
+      accounts: [ process.env.PRIVATE_KEY || "0x0000000000000000000000000000000000000000000000000000000000000000" ],
     },
   },
   typechain: {

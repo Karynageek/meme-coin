@@ -14,10 +14,14 @@ contract MemeCoin is Context, ERC20, ERC20Burnable, AccessControl {
     IUniswapV2Router02 public uniswapV2Router;
     address public uniswapV2Pair;
 
+    error ZeroAddress();
+    error ForbiddenWithdrawalFromOwnContract();
+    error InvalidValue();
     error UserIsAbuser();
     error UserIsNotAbuser();
-    error ZeroAddress();
-    error InvalidValue();
+    error TradingNotEnabled();
+    error MaxTransactionAmountExceeded();
+    error MaxWalletExceeded();
 
     uint256 public constant MAX_TOTAL_SUPPLY = 19000000000e18;
 
@@ -252,11 +256,12 @@ contract MemeCoin is Context, ERC20, ERC20Burnable, AccessControl {
         address _token,
         address _to
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        require(_token != address(0), "_token address cannot be 0");
-        require(
-            _token != address(this),
-            "Owner cannot claim contract's balance of its own tokens"
-        );
+        if (_token == address(0)) {
+            revert ZeroAddress();
+        }
+        if (_token == address(this)) {
+            revert ForbiddenWithdrawalFromOwnContract();
+        }
         uint256 balance = IERC20(_token).balanceOf(address(this));
         IERC20(_token).transfer(_to, balance);
     }
@@ -439,46 +444,50 @@ contract MemeCoin is Context, ERC20, ERC20Burnable, AccessControl {
         address to,
         uint256 amount
     ) internal override {
-        require(from != address(0), "ERC20: transfer from the zero address");
-        require(to != address(0), "ERC20: transfer to the zero address");
-        require(amount > 0, "Transfer amount must be greater than zero");
-        require(!isAbuser(from) && !isAbuser(to), "Address is abuser");
+        if (from == address(0) || to == address(0)) {
+            revert ZeroAddress();
+        }
+        if (amount == 0) {
+            revert InvalidValue();
+        }
+        if (isAbuser(from) || isAbuser(to)) {
+            revert UserIsAbuser();
+        }
 
         // Check trading status and excluded fee status
         if (!isExcludedFromFees(from) && !isExcludedFromFees(to)) {
-            require(tradingEnabled, "Trading not yet enabled");
+            if (!tradingEnabled) {
+                revert TradingNotEnabled();
+            }
         }
 
         // Check maximum transaction limits for buy and sell transfers
 
         //when buy
         if (from == uniswapV2Pair && !isExcludedFromMaxTransaction(to)) {
-            require(
-                amount <= maxBuyTransaction,
-                "Buy transfer amount exceeds the maxTransactionAmount."
-            );
+            if (amount > maxBuyTransaction) {
+                revert MaxTransactionAmountExceeded();
+            }
 
-            require(
-                amount + balanceOf(to) <= maxWalletAmount,
-                "Max wallet exceeded"
-            );
+            if (amount + balanceOf(to) > maxWalletAmount) {
+                revert MaxWalletExceeded();
+            }
         }
         //when sell
         else if (to == uniswapV2Pair && !isExcludedFromMaxTransaction(from)) {
-            require(
-                amount <= maxSellTransaction,
-                "Sell transfer amount exceeds the maxTransactionAmount."
-            );
+            if (amount > maxSellTransaction) {
+                revert MaxTransactionAmountExceeded();
+            }
         } else if (!isExcludedFromMaxTransaction(to)) {
-            require(
-                amount + balanceOf(to) <= maxWalletAmount,
-                "Max wallet exceeded"
-            );
+            if (amount + balanceOf(to) > maxWalletAmount) {
+                revert MaxWalletExceeded();
+            }
         }
 
         uint256 contractTokenBalance = balanceOf(address(this));
 
-        bool canSwap = contractTokenBalance != 0 && contractTokenBalance >= swapTokensAtAmount;
+        bool canSwap = contractTokenBalance != 0 &&
+            contractTokenBalance >= swapTokensAtAmount;
 
         // Check if token swaps for liquidity and marketing should occur
         if (
