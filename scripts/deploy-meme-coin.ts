@@ -5,11 +5,11 @@ async function main() {
     const delay = (ms: any) => new Promise((res) => setTimeout(res, ms));
 
     let token: Contract;
-    const name = 'Test Token';
-    const symbol = 'TT';
-    const admin = '0x131D1697d2cFB060493C14A4e6Fa72892770588E';
+    const name = 'BarbieAlienDogeheimer';
+    const symbol = 'WORLDCOIN';
+    const admin = '0x2183991423fd25f0b4D3167801FAC259722AB770';
     const router = '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D';
-    const marketingWallet = '0x131D1697d2cFB060493C14A4e6Fa72892770588E';
+    const marketingWallet = '0x4Dda5aEA6956A2974e956dd6dFac5479fb4E4708';
 
     const MemeCoin = await ethers.getContractFactory('MemeCoin');
     token = await MemeCoin.deploy(name, symbol, admin, router, marketingWallet);

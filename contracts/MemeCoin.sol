@@ -23,7 +23,7 @@ contract MemeCoin is Context, ERC20, ERC20Burnable, AccessControl {
     error MaxTransactionAmountExceeded();
     error MaxWalletExceeded();
 
-    uint256 public constant MAX_TOTAL_SUPPLY = 19000000000e18;
+    uint256 public constant MAX_TOTAL_SUPPLY = 1000000000e18;
 
     bool private swapping;
     bool public swapEnabled = false;
